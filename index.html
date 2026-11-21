@@ -435,7 +435,7 @@
 
       <!-- MINIMAL TOP BAR (Mobile-safe left padding so host close button never overlaps) -->
       <header class="flex items-center justify-between gap-3 mb-6">
-        <div class="flex items-center gap-2.5 min-w-0 pl-11 md:pl-0">
+        <div class="flex items-center gap-2.5 min-w-0 pl-9 md:pl-0">
           <span class="font-black tracking-tight text-xl sm:text-2xl text-black">LocalClips</span>
           <span class="hidden sm:inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white border border-black/10 text-zinc-700 shadow-sm">iOS 26 Gloss</span>
         </div>
@@ -446,6 +446,9 @@
         </div>
 
         <div class="flex items-center gap-2 shrink-0">
+          <button id="openVideoLibraryBtn" type="button" class="gloss-btn px-3 h-9 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer">
+            <i data-lucide="library" class="w-3.5 h-3.5"></i><span class="hidden sm:inline">Library</span>
+          </button>
           <button id="exportSrtBtn" type="button" class="gloss-btn px-3.5 h-9 rounded-full text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer">
             <i data-lucide="subtitles" class="w-3.5 h-3.5"></i>
             <span class="hidden sm:inline">SRT</span>
@@ -1135,13 +1138,9 @@
                   <input id="importSrtInput" type="file" accept=".srt,.txt" class="hidden" />
                 </label>
                 <button id="addLineBtn" type="button" class="gloss-btn px-3 py-1.5 rounded-full text-xs font-bold cursor-pointer">+ Line</button>
-                <button id="toggleAiKeyBtn" type="button" class="gloss-btn px-3 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1 cursor-pointer">
-                  <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> AI Audio Key
+                <button id="aiTranscribeBtn" type="button" class="gloss-btn px-3 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1 cursor-pointer">
+                  <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> AI Transcribe
                 </button>
-              </div>
-              <div id="aiKeyPanel" class="hidden soft-well rounded-2xl p-2.5 flex flex-wrap items-center gap-2">
-                <input id="geminiKeyInput" type="password" placeholder="Optional: Paste Gemini API Key for direct MP4 audio transcription" class="gloss-field flex-1 min-w-[180px] rounded-xl px-3 py-1.5 text-xs" />
-                <button id="saveGeminiKeyBtn" type="button" class="gloss-black px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer">Save &amp; Transcribe</button>
               </div>
             </div>
             <div id="transcriptList" class="space-y-2.5 max-h-[420px] overflow-y-auto pr-1"></div>
@@ -1409,9 +1408,9 @@
       </div>
 
       <div class="space-y-3">
-        <div class="space-y-1">
-          <label class="text-[11px] font-extrabold text-zinc-600">Gemini API Key (Direct AI Vision + Audio Editing)</label>
-          <input id="modalGeminiKeyInput" type="password" placeholder="AIzaSy... (Powers Gemini 2.0 Flash character &amp; audio edits)" class="gloss-field w-full rounded-2xl px-3.5 py-2.5 text-xs font-semibold" />
+        <div class="soft-well rounded-2xl p-3 text-[11px] text-zinc-700">
+          <p class="font-extrabold text-black">Secure Gemini connection</p>
+          <p>Gemini API key is stored on the Vercel server as GEMINI_API_KEY. It is never entered or saved in this browser.</p>
         </div>
         <div class="space-y-1">
           <label class="text-[11px] font-extrabold text-zinc-600">WhatsApp Editing Bot Number (with Country Code, e.g. 9198XXXXXXXX)</label>
@@ -1423,16 +1422,32 @@
         </div>
         <div class="soft-well rounded-2xl p-3 text-[11px] text-zinc-700 space-y-1">
           <p class="font-extrabold text-black">How it works:</p>
-          <p>• <strong>With Gemini Key or Backend URL:</strong> Samples clip frames + audio, tracks character X-position, plans dynamic cuts/transitions, and translates captions via Google Translate.</p>
-          <p>• <strong>Without Key:</strong> Built-in Local AI Auto-Frame &amp; Dynamic Beat-Cut Director still keeps characters in frame with smooth transitions &amp; Google Translate!</p>
+          <p>• <strong>With secure Gemini backend:</strong> Samples clip frames + audio, tracks character X-position, plans dynamic cuts/transitions, and translates captions via Google Translate.</p>
+          <p>• <strong>If Gemini is not configured:</strong> Built-in Local AI Auto-Frame &amp; Dynamic Beat-Cut Director still keeps characters in frame with smooth transitions &amp; Google Translate!</p>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <button id="saveAndRunAiBackendBtn" type="button" class="gloss-black py-2.5 rounded-full text-xs font-extrabold cursor-pointer">Save &amp; AI-Edit Clip</button>
+          <button id="saveAndRunAiBackendBtn" type="button" class="gloss-black py-2.5 rounded-full text-xs font-extrabold cursor-pointer">Save Settings</button>
           <button id="downloadBackendServerBtn" type="button" class="gloss-btn py-2.5 rounded-full text-xs font-extrabold inline-flex items-center justify-center gap-1.5 cursor-pointer">
             <i data-lucide="download" class="w-3.5 h-3.5"></i> Download server.js
           </button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- LocalClips persistent private video library -->
+  <div id="videoLibraryModal" class="gloss-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="videoLibraryTitle">
+    <div class="gloss-modal-card wide p-5 sm:p-6 space-y-4 relative">
+      <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-11 h-11 rounded-2xl gloss-black flex items-center justify-center"><i data-lucide="library" class="w-5 h-5 text-white"></i></div>
+          <div><h3 id="videoLibraryTitle" class="text-base font-black text-black">My Video Library</h3><p class="text-xs text-zinc-500">Your videos saved in private cloud storage</p></div>
+        </div>
+        <button id="closeVideoLibraryBtn" type="button" class="gloss-btn w-9 h-9 rounded-full flex items-center justify-center" aria-label="Close library"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+      <div class="flex items-center justify-between gap-2"><p id="videoLibraryStatus" class="text-xs text-zinc-500">Loading saved videos…</p><button id="refreshVideoLibraryBtn" type="button" class="gloss-btn px-3 py-1.5 rounded-full text-xs font-bold">Refresh</button></div>
+      <div id="videoLibraryList" class="space-y-2 max-h-[55dvh] overflow-y-auto pr-1"><div class="soft-well rounded-2xl p-4 text-xs text-zinc-500">Connecting to private storage…</div></div>
+      <p class="text-[10px] text-zinc-500">Videos remain private. Reopening a saved video downloads it to this browser for local clip analysis.</p>
     </div>
   </div>
 
@@ -3538,7 +3553,20 @@
     }
 
 
-    function getSavedGeminiKey() { return persistReadSync('localclips_gemini_key') || ''; }
+    async function callLocalClipsGemini(prompt, audioBase64) {
+      const response = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, audioBase64, mimeType: 'audio/wav' })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Gemini backend request failed');
+      return String(data.text || '');
+    }
+    // Remove legacy client-side Gemini keys; all Gemini requests now go through Vercel.
+    try { localStorage.removeItem('localclips_gemini_key'); } catch (_) {}
+    try { persistRemove('localclips_gemini_key'); } catch (_) {}
+
     function encodeWav16kMono(audioBuffer, startSec, endSec) {
       const sr = audioBuffer.sampleRate || 44100;
       const sIdx = Math.max(0, Math.floor(startSec * sr));
@@ -3633,7 +3661,6 @@
     }
 
     async function deepEditAllGeneratedClips(file, jobId) {
-      const apiKey = getSavedGeminiKey();
       const backendUrl = persistReadSync('localclips_backend_url_v1') || '';
       const waNum = (persistReadSync('localclips_wa_bot_number_v1') || '').replace(/[^0-9]/g, '');
       const total = Math.max(1, state.clips.length);
@@ -3677,7 +3704,7 @@
         } catch (_) {}
       }
       let decodedAudio = null;
-      if (file && apiKey && file.size <= 80 * 1024 * 1024) {
+      if (file && file.size <= 80 * 1024 * 1024) {
         try {
           const AC = window.AudioContext || window.webkitAudioContext;
           if (AC) {
@@ -3701,7 +3728,7 @@
         clip.editCuts = sceneCuts;
 
         // 2) If Gemini Key is configured, extract real WAV audio & transcribe/translate this clip during generation!
-        if (apiKey && decodedAudio) {
+        if (decodedAudio) {
           try {
             updateGenProgress(basePct + 4, `Gemini AI transcribing & translating Clip #${i + 1}...`, 'AI Audio Captions');
             const wavBytes = encodeWav16kMono(decodedAudio, clip.start, Math.min(clip.end, clip.start + 60));
@@ -3710,23 +3737,14 @@
             const ctrl = new AbortController();
             const tid = setTimeout(() => ctrl.abort(), 28000);
             const langName = state.captionLang === 'hindi' ? 'Hindi Devanagari' : state.captionLang === 'hinglish' ? 'Romanized Hinglish (Hindi words in English letters)' : 'English';
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(apiKey)}`, {
-              method: 'POST',
-              signal: ctrl.signal,
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [{
-                  parts: [
-                    { text: `Transcribe spoken words in this audio into ${langName}. Return ONLY JSON array of 3-5 word lines: [{"start":0.0,"end":2.4,"text":"..."}]` },
-                    { inline_data: { mime_type: 'audio/wav', data: btoa(bin) } }
-                  ]
-                }]
-              })
-            });
-            clearTimeout(tid);
-            if (res.ok) {
-              const d = await res.json();
-              const rawTxt = (d.candidates && d.candidates[0] && d.candidates[0].content && d.candidates[0].content.parts && d.candidates[0].content.parts[0].text) || '';
+            const rawTxt = await Promise.race([
+              callLocalClipsGemini(
+                `Transcribe spoken words in this audio into ${langName}. Return ONLY JSON array of 3-5 word lines: [{"start":0.0,"end":2.4,"text":"..."}]`,
+                btoa(bin)
+              ),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Gemini request timed out')), 28000))
+            ]);
+            if (rawTxt) {
               const m = rawTxt.match(/\[[\s\S]*\]/);
               if (m) {
                 const segs = JSON.parse(m[0]);
@@ -3826,6 +3844,66 @@
       });
     }
 
+    async function getLocalClipsStoragePassword() {
+      let password = '';
+      try { password = sessionStorage.getItem('localclips_upload_password') || ''; } catch (_) {}
+      if (!password) {
+        password = await requestUploadPassword();
+        if (password) { try { sessionStorage.setItem('localclips_upload_password', password); } catch (_) {} }
+      }
+      return password;
+    }
+
+    async function loadVideoLibrary() {
+      const list = document.getElementById('videoLibraryList');
+      const status = document.getElementById('videoLibraryStatus');
+      list.innerHTML = '<div class="soft-well rounded-2xl p-4 text-xs text-zinc-500">Loading your saved videos…</div>';
+      status.textContent = 'Connecting to private storage…';
+      try {
+        const password = await getLocalClipsStoragePassword();
+        if (!password) { status.textContent = 'Password required to access private storage.'; list.innerHTML = ''; return; }
+        const response = await fetch('/api/videos', { headers: { 'x-localclips-password': password } });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'Could not load saved videos.');
+        const videos = Array.isArray(data.videos) ? data.videos : [];
+        status.textContent = `${videos.length} saved video${videos.length === 1 ? '' : 's'}`;
+        if (!videos.length) { list.innerHTML = '<div class="soft-well rounded-2xl p-5 text-center text-xs text-zinc-500">No saved videos yet. Upload an MP4 to add your first video.</div>'; return; }
+        list.innerHTML = '';
+        videos.forEach(video => {
+          const row = document.createElement('div');
+          row.className = 'gloss-surface rounded-2xl p-3 flex items-center gap-3';
+          const info = document.createElement('div'); info.className = 'min-w-0 flex-1';
+          const name = document.createElement('p'); name.className = 'text-xs font-extrabold text-black truncate'; name.textContent = video.name || video.pathname.split('/').pop();
+          const meta = document.createElement('p'); meta.className = 'text-[10px] text-zinc-500 mt-1'; meta.textContent = `${(video.size / 1048576).toFixed(1)} MB • ${video.uploadedAt ? new Date(video.uploadedAt).toLocaleString() : 'Saved video'}`;
+          info.append(name, meta);
+          const open = document.createElement('button'); open.type = 'button'; open.className = 'gloss-black px-3 py-2 rounded-full text-[11px] font-bold shrink-0'; open.textContent = 'Open & Clip';
+          open.addEventListener('click', async () => {
+            open.disabled = true; open.textContent = 'Loading…';
+            try {
+              const fileResponse = await fetch(`/api/video?pathname=${encodeURIComponent(video.pathname)}`, { headers: { 'x-localclips-password': password } });
+              if (!fileResponse.ok) { const err = await fileResponse.json().catch(() => ({})); throw new Error(err.error || 'Could not retrieve this video.'); }
+              const blob = await fileResponse.blob();
+              const filename = video.name || video.pathname.split('/').pop() || 'saved-video.mp4';
+              const file = new File([blob], filename, { type: blob.type || 'video/mp4', lastModified: video.uploadedAt ? new Date(video.uploadedAt).getTime() : Date.now() });
+              document.getElementById('videoLibraryModal').classList.add('hidden');
+              await handleLocalVideoFile(file, video.pathname);
+            } catch (error) { showToast(error.message || 'Could not open saved video.'); open.disabled = false; open.textContent = 'Open & Clip'; }
+          });
+          row.append(info, open); list.appendChild(row);
+        });
+      } catch (error) {
+        status.textContent = 'Library could not be loaded';
+        list.innerHTML = '';
+        const msg = document.createElement('p'); msg.className = 'soft-well rounded-2xl p-4 text-xs font-semibold text-red-600'; msg.textContent = error.message || 'Storage request failed.'; list.appendChild(msg);
+      }
+    }
+
+    function openVideoLibrary() {
+      document.getElementById('videoLibraryModal').classList.remove('hidden');
+      loadVideoLibrary();
+      if (window.lucide) lucide.createIcons();
+    }
+
     // Upload local videos directly from the browser to the private Vercel Blob store.
     // The 500 MB file never passes through the Vercel Function request body.
     async function uploadLocalVideoToBlob(file, jobId) {
@@ -3837,6 +3915,7 @@
 
       const password = await requestUploadPassword();
       if (!password) throw new Error('Upload cancelled. Upload password is required.');
+      try { sessionStorage.setItem('localclips_upload_password', password); } catch (_) {}
 
       updateGenProgress(18, 'Connecting to private video storage...', 'Secure Upload');
       // This static HTML app has no bundler, so load the same Blob client SDK at runtime.
@@ -3867,7 +3946,7 @@
       return blob;
     }
 
-    async function handleLocalVideoFile(file) {
+    async function handleLocalVideoFile(file, savedBlobPath = null) {
       if (!file) return;
       if (!requireLogin('Sign in to upload videos & auto-generate clips')) return;
 
@@ -3883,9 +3962,14 @@
       stopWebcam();
       const jobId = openGenProgressModal('Uploading & Analyzing Video...', tx);
 
-      // Persist the original file in private Blob storage before starting browser analysis.
+      // New files are uploaded first; saved library files already exist in private Blob storage.
       try {
-        await uploadLocalVideoToBlob(file, jobId);
+        if (savedBlobPath) {
+          state.lastUploadedBlobPath = savedBlobPath;
+          updateGenProgress(38, 'Saved video retrieved. Preparing local analysis...', 'Library Video Ready');
+        } else {
+          await uploadLocalVideoToBlob(file, jobId);
+        }
       } catch (error) {
         console.error('LocalClips private Blob upload failed:', error);
         if (jobId === activeGenJobId) {
@@ -4465,13 +4549,13 @@
         return new Uint8Array(buf);
       }
 
-      async function transcribeClipWithGemini(apiKey) {
+      async function transcribeClipWithGemini() {
         if (!state.localObjectUrl || state.sourceMode !== 'local') {
-          showToast('Upload a local MP4 video first for direct AI audio transcription');
+          showToast('Upload a local MP4 video first for AI transcription');
           return false;
         }
         const clip = getActiveClip();
-        showToast('Extracting clip audio & transcribing with Gemini AI...');
+        showToast('Extracting clip audio & transcribing with secure Gemini backend...');
         try {
           const blob = await (await fetch(state.localObjectUrl)).blob();
           const AC = window.AudioContext || window.webkitAudioContext;
@@ -4483,25 +4567,15 @@
           for (let i = 0; i < wavBytes.length; i += 8192) {
             bin += String.fromCharCode.apply(null, wavBytes.subarray(i, i + 8192));
           }
-          const b64 = btoa(bin);
           const langPrompt = state.captionLang === 'hinglish'
             ? 'Transcribe the spoken audio into natural Romanized Hinglish (Hindi words written in English letters like "kaise ho bhai").'
             : state.captionLang === 'hindi'
             ? 'Transcribe the spoken audio into accurate Hindi Devanagari script.'
             : 'Transcribe the spoken audio into clear English.';
           const prompt = `${langPrompt} Return ONLY a valid JSON array of short subtitle segments (3-6 words each) with relative seconds from 0: [{"start":0.0,"end":2.4,"text":"..."}]`;
-          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(apiKey)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: 'audio/wav', data: b64 } }] }]
-            })
-          });
-          if (!res.ok) throw new Error('API Error');
-          const data = await res.json();
-          const rawTxt = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0].text) || '';
-          const match = rawTxt.match(/\[[\s\S]*\]/);
-          if (!match) throw new Error('Parse error');
+          const rawTxt = await callLocalClipsGemini(prompt, btoa(bin));
+          const match = rawTxt.match(/\\[[\\s\\S]*\\]/);
+          if (!match) throw new Error('Gemini returned no subtitle JSON');
           const segs = JSON.parse(match[0]);
           if (Array.isArray(segs) && segs.length) {
             clip.lines = segs.map(s => ({
@@ -4513,26 +4587,18 @@
             showToast(`AI transcribed ${clip.lines.length} synced captions!`);
             return true;
           }
-        } catch (_) {
-          showToast('AI transcription failed — check Gemini API key or use Live Auto-Caption');
+        } catch (err) {
+          showToast(err && err.message ? err.message : 'AI transcription failed — check Vercel GEMINI_API_KEY');
         }
         return false;
       }
 
-      const aiKeyPanel = document.getElementById('aiKeyPanel');
-      const geminiKeyInput = document.getElementById('geminiKeyInput');
-      try { const savedKey = localStorage.getItem('localclips_gemini_key'); if (savedKey && geminiKeyInput) geminiKeyInput.value = savedKey; } catch (_) {}
-      const toggleAiKeyBtn = document.getElementById('toggleAiKeyBtn');
-      if (toggleAiKeyBtn && aiKeyPanel) {
-        toggleAiKeyBtn.addEventListener('click', () => aiKeyPanel.classList.toggle('hidden'));
-      }
-      const saveGeminiKeyBtn = document.getElementById('saveGeminiKeyBtn');
-      if (saveGeminiKeyBtn && geminiKeyInput) {
-        saveGeminiKeyBtn.addEventListener('click', async () => {
-          const k = geminiKeyInput.value.trim();
-          try { if (k) localStorage.setItem('localclips_gemini_key', k); else localStorage.removeItem('localclips_gemini_key'); } catch (_) {}
-          if (k) { aiKeyPanel.classList.add('hidden'); await transcribeClipWithGemini(k); }
-          else showToast('Cleared Gemini API Key');
+      const aiTranscribeBtn = document.getElementById('aiTranscribeBtn');
+      if (aiTranscribeBtn) {
+        aiTranscribeBtn.addEventListener('click', async () => {
+          aiTranscribeBtn.disabled = true;
+          try { await transcribeClipWithGemini(); }
+          finally { aiTranscribeBtn.disabled = false; }
         });
       }
 
@@ -4543,11 +4609,9 @@
 
       async function runAutoCaptionFlow() {
         const btnText = document.getElementById('autoCapBtnText');
-        let savedKey = '';
-        try { savedKey = localStorage.getItem('localclips_gemini_key') || ''; } catch (_) {}
-        if (savedKey && state.sourceMode === 'local' && !autoCapActive) {
+        if (state.sourceMode === 'local' && !autoCapActive) {
           btnText.textContent = 'AI Transcribing...';
-          const ok = await transcribeClipWithGemini(savedKey);
+          const ok = await transcribeClipWithGemini();
           btnText.textContent = 'Auto-Caption';
           if (ok) return;
         }
@@ -5082,11 +5146,9 @@
       const aiBackendModal = document.getElementById('aiBackendModal');
       const openAiBackendBtn = document.getElementById('openAiBackendBtn');
       const closeAiBackendBtn = document.getElementById('closeAiBackendBtn');
-      const modalGeminiKeyInput = document.getElementById('modalGeminiKeyInput');
       const modalBackendUrlInput = document.getElementById('modalBackendUrlInput');
       if (openAiBackendBtn && aiBackendModal) {
         openAiBackendBtn.addEventListener('click', () => {
-          if (modalGeminiKeyInput) modalGeminiKeyInput.value = getSavedGeminiKey();
           if (modalBackendUrlInput) modalBackendUrlInput.value = persistReadSync('localclips_backend_url_v1') || '';
           aiBackendModal.classList.remove('hidden');
           lucide.createIcons();
@@ -5203,14 +5265,12 @@
       const saveAiBackendBtn = document.getElementById('saveAndRunAiBackendBtn');
       if (saveAiBackendBtn) {
         saveAiBackendBtn.addEventListener('click', async () => {
-          const k = (document.getElementById('modalGeminiKeyInput') && document.getElementById('modalGeminiKeyInput').value.trim()) || '';
           const u = (document.getElementById('modalBackendUrlInput') && document.getElementById('modalBackendUrlInput').value.trim()) || '';
           const w = (document.getElementById('modalWaBotNumberInput') && document.getElementById('modalWaBotNumberInput').value.replace(/[^0-9]/g, '')) || '';
-          if (k) persistWrite('localclips_gemini_key', k); else persistRemove('localclips_gemini_key');
           if (u) persistWrite('localclips_backend_url_v1', u); else persistRemove('localclips_backend_url_v1');
           if (w) persistWrite('localclips_wa_bot_number_v1', w); else persistRemove('localclips_wa_bot_number_v1');
           document.getElementById('aiBackendModal').classList.add('hidden');
-          showToast('Saved Gemini AI & WhatsApp Bot settings!');
+          showToast('Saved WhatsApp bridge settings. Gemini uses the secure Vercel backend.');
         });
       }
       const dlServerBtn2 = document.getElementById('downloadBackendServerBtn');
@@ -5247,6 +5307,12 @@
     }
 
     window.addEventListener('DOMContentLoaded', () => {
+      const libraryModal = document.getElementById('videoLibraryModal');
+      document.getElementById('openVideoLibraryBtn')?.addEventListener('click', openVideoLibrary);
+      document.getElementById('closeVideoLibraryBtn')?.addEventListener('click', () => libraryModal.classList.add('hidden'));
+      document.getElementById('refreshVideoLibraryBtn')?.addEventListener('click', loadVideoLibrary);
+      libraryModal?.addEventListener('click', e => { if (e.target === libraryModal) libraryModal.classList.add('hidden'); });
+
       // Build all Custom iOS 26 White Glossy Dropdowns (Zero native roll-up selects!)
       fontSelectCtrl = createGlossSelect('fontSelectWrap', FONT_OPTIONS, state.caption.font, val => { state.caption.font = val; }, true);
       animSelectCtrl = createGlossSelect('animSelectWrap', ANIM_OPTIONS, state.caption.anim, val => { state.caption.anim = val; }, false);

@@ -360,6 +360,32 @@
       animation: modalSpringIn 0.34s cubic-bezier(0.22, 1.18, 0.36, 1) both;
     }
     .gloss-modal-card.wide { max-width: 720px; }
+
+    /* LocalClips themed upload-password dialog; adapts to Android's visible keyboard viewport. */
+    #uploadPasswordModal {
+      z-index: 120;
+      align-items: center;
+      padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+      height: var(--lc-visible-height, 100dvh);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+    #uploadPasswordModal.keyboard-open {
+      align-items: flex-start;
+      padding-top: 12px;
+    }
+    #uploadPasswordModal .gloss-modal-card {
+      max-height: calc(var(--lc-visible-height, 100dvh) - 28px);
+      overflow-y: auto;
+      flex: 0 0 auto;
+      margin: auto 0;
+    }
+    #uploadPasswordInput { scroll-margin: 18px; font-size: 16px !important; }
+    @media (max-height: 480px) {
+      #uploadPasswordModal { align-items: flex-start; padding-top: 8px; }
+      #uploadPasswordModal .gloss-modal-card { margin: 0 auto; }
+    }
+
     @keyframes fadeBackdrop {
       from { opacity: 0; }
       to { opacity: 1; }
@@ -1406,6 +1432,33 @@
             <i data-lucide="download" class="w-3.5 h-3.5"></i> Download server.js
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LocalClips theme-matched upload password modal -->
+  <div id="uploadPasswordModal" class="gloss-modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="uploadPasswordTitle">
+    <div class="gloss-modal-card p-6 space-y-4 relative">
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 rounded-2xl gloss-black flex items-center justify-center shadow-lg"><i data-lucide="lock-keyhole" class="w-5 h-5 text-white"></i></div>
+        <div class="min-w-0 flex-1">
+          <h3 id="uploadPasswordTitle" class="text-base font-black text-black">Secure Video Upload</h3>
+          <p class="text-xs text-zinc-500">Enter your LocalClips storage password</p>
+        </div>
+        <button id="cancelUploadPasswordBtn" type="button" class="gloss-btn w-9 h-9 rounded-full flex items-center justify-center" aria-label="Cancel"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+      <div class="space-y-2">
+        <label for="uploadPasswordInput" class="text-[11px] font-extrabold text-zinc-600">Upload password</label>
+        <div class="relative">
+          <input id="uploadPasswordInput" type="password" autocomplete="current-password" autocapitalize="off" spellcheck="false" placeholder="Enter upload password" class="gloss-field w-full rounded-2xl px-4 py-3 pr-12 text-sm font-semibold" />
+          <button id="toggleUploadPasswordBtn" type="button" class="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 p-2" aria-label="Show password"><i data-lucide="eye" class="w-4 h-4"></i></button>
+        </div>
+        <p id="uploadPasswordError" class="hidden text-xs font-bold text-red-600" role="alert">Please enter your password.</p>
+      </div>
+      <div class="soft-well rounded-2xl p-3 text-[11px] text-zinc-600">Your video uploads directly to your configured Vercel Blob storage.</div>
+      <div class="grid grid-cols-2 gap-2">
+        <button id="cancelUploadPasswordAction" type="button" class="gloss-btn py-3 rounded-full text-xs font-extrabold">Cancel</button>
+        <button id="submitUploadPasswordBtn" type="button" class="gloss-black py-3 rounded-full text-xs font-extrabold">Continue Upload</button>
       </div>
     </div>
   </div>
@@ -3699,6 +3752,80 @@
       selectClip(state.clips[0].id);
     }
 
+    // Theme-matched password dialog. VisualViewport keeps it above the Android keyboard.
+    function requestUploadPassword() {
+      return new Promise((resolve) => {
+        const modal = document.getElementById('uploadPasswordModal');
+        const input = document.getElementById('uploadPasswordInput');
+        const error = document.getElementById('uploadPasswordError');
+        const submit = document.getElementById('submitUploadPasswordBtn');
+        const cancelTop = document.getElementById('cancelUploadPasswordBtn');
+        const cancelBottom = document.getElementById('cancelUploadPasswordAction');
+        const toggle = document.getElementById('toggleUploadPasswordBtn');
+        let settled = false;
+        const viewport = window.visualViewport;
+        const updateViewport = () => {
+          const height = viewport ? viewport.height : window.innerHeight;
+          modal.style.setProperty('--lc-visible-height', `${height}px`);
+          modal.classList.toggle('keyboard-open', !!(viewport && window.innerHeight - viewport.height > 100));
+        };
+        const cleanup = () => {
+          submit.removeEventListener('click', onSubmit);
+          cancelTop.removeEventListener('click', onCancel);
+          cancelBottom.removeEventListener('click', onCancel);
+          toggle.removeEventListener('click', onToggle);
+          input.removeEventListener('keydown', onKeydown);
+          if (viewport) viewport.removeEventListener('resize', updateViewport);
+          window.removeEventListener('resize', updateViewport);
+          modal.classList.add('hidden');
+          modal.classList.remove('keyboard-open');
+          modal.style.removeProperty('--lc-visible-height');
+          input.value = '';
+          input.type = 'password';
+        };
+        const finish = (value) => {
+          if (settled) return;
+          settled = true;
+          input.blur();
+          cleanup();
+          resolve(value);
+        };
+        const onSubmit = () => {
+          const value = input.value;
+          if (!value) { error.classList.remove('hidden'); input.focus(); return; }
+          finish(value);
+        };
+        const onCancel = () => finish(null);
+        const onToggle = () => {
+          const show = input.type === 'password';
+          input.type = show ? 'text' : 'password';
+          toggle.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+          toggle.innerHTML = `<i data-lucide="${show ? 'eye-off' : 'eye'}" class="w-4 h-4"></i>`;
+          if (window.lucide) lucide.createIcons();
+          input.focus({ preventScroll: true });
+        };
+        const onKeydown = (event) => {
+          if (event.key === 'Enter') { event.preventDefault(); onSubmit(); }
+          if (event.key === 'Escape') { event.preventDefault(); onCancel(); }
+        };
+        submit.addEventListener('click', onSubmit);
+        cancelTop.addEventListener('click', onCancel);
+        cancelBottom.addEventListener('click', onCancel);
+        toggle.addEventListener('click', onToggle);
+        input.addEventListener('keydown', onKeydown);
+        if (viewport) viewport.addEventListener('resize', updateViewport);
+        window.addEventListener('resize', updateViewport);
+        error.classList.add('hidden');
+        modal.classList.remove('hidden');
+        updateViewport();
+        if (window.lucide) lucide.createIcons();
+        requestAnimationFrame(() => {
+          input.focus({ preventScroll: true });
+          input.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        });
+      });
+    }
+
     // Upload local videos directly from the browser to the private Vercel Blob store.
     // The 500 MB file never passes through the Vercel Function request body.
     async function uploadLocalVideoToBlob(file, jobId) {
@@ -3708,7 +3835,7 @@
         throw new Error('Video is larger than the 500 MB upload limit.');
       }
 
-      const password = window.prompt('Enter your LocalClips upload password:');
+      const password = await requestUploadPassword();
       if (!password) throw new Error('Upload cancelled. Upload password is required.');
 
       updateGenProgress(18, 'Connecting to private video storage...', 'Secure Upload');

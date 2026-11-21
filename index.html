@@ -1606,6 +1606,8 @@
       socialInfo: null,
       socialThumbImg: null,
       localObjectUrl: null,
+      lastUploadedBlobPath: null,
+      lastUploadedAt: null,
       camStream: null,
       videoDuration: 15,
       autoClipSec: 15,
@@ -3697,35 +3699,107 @@
       selectClip(state.clips[0].id);
     }
 
-    function handleLocalVideoFile(file) {
+    // Upload local videos directly from the browser to the private Vercel Blob store.
+    // The 500 MB file never passes through the Vercel Function request body.
+    async function uploadLocalVideoToBlob(file, jobId) {
+      const MAX_VIDEO_SIZE = 500 * 1024 * 1024;
+      if (!file || !file.size) throw new Error('Please choose a valid video file.');
+      if (file.size > MAX_VIDEO_SIZE) {
+        throw new Error('Video is larger than the 500 MB upload limit.');
+      }
+
+      const password = window.prompt('Enter your LocalClips upload password:');
+      if (!password) throw new Error('Upload cancelled. Upload password is required.');
+
+      updateGenProgress(18, 'Connecting to private video storage...', 'Secure Upload');
+      // This static HTML app has no bundler, so load the same Blob client SDK at runtime.
+      const blobClient = await import('https://esm.sh/@vercel/blob@2.9.0/client');
+      if (!blobClient || typeof blobClient.upload !== 'function') {
+        throw new Error('Could not load the Vercel Blob upload client. Please refresh and retry.');
+      }
+
+      const safeName = String(file.name || 'video.mp4')
+        .normalize('NFKD')
+        .replace(/[^a-zA-Z0-9._-]/g, '_')
+        .slice(-100);
+      const pathname = `localclips/videos/${Date.now()}-${safeName}`;
+
+      const blob = await blobClient.upload(pathname, file, {
+        access: 'private',
+        handleUploadUrl: '/api/upload',
+        clientPayload: JSON.stringify({ password })
+      });
+
+      if (!blob || !blob.pathname) {
+        throw new Error('Storage did not confirm the video upload.');
+      }
+
+      state.lastUploadedBlobPath = blob.pathname;
+      state.lastUploadedAt = Date.now();
+      updateGenProgress(38, 'Video saved. Preparing local analysis...', 'Upload Complete');
+      return blob;
+    }
+
+    async function handleLocalVideoFile(file) {
       if (!file) return;
       if (!requireLogin('Sign in to upload videos & auto-generate clips')) return;
+
+      const MAX_VIDEO_SIZE = 500 * 1024 * 1024;
+      if (file.size > MAX_VIDEO_SIZE) {
+        showToast('Video is larger than the 500 MB upload limit.');
+        return;
+      }
+
       const tx = consumeCredits(1, 'Video auto-clipping');
       if (!tx.ok) return;
-      stopWebcam();
-      if (state.localObjectUrl) { try { URL.revokeObjectURL(state.localObjectUrl); } catch (_) {} }
-      const objUrl = URL.createObjectURL(file); state.localObjectUrl = objUrl;
 
-      const jobId = openGenProgressModal('Analyzing & Generating Clips...', tx);
-      updateGenProgress(15, `Reading "${file.name.slice(0, 22)}"...`, 'Loading Video');
+      stopWebcam();
+      const jobId = openGenProgressModal('Uploading & Analyzing Video...', tx);
+
+      // Persist the original file in private Blob storage before starting browser analysis.
+      try {
+        await uploadLocalVideoToBlob(file, jobId);
+      } catch (error) {
+        console.error('LocalClips private Blob upload failed:', error);
+        if (jobId === activeGenJobId) {
+          document.getElementById('genProgressModal').classList.add('hidden');
+          restoreCredits(tx, 'Video upload failed');
+        }
+        showToast(error && error.message ? error.message : 'Video upload failed. Please retry.');
+        return;
+      }
+
+      if (jobId !== activeGenJobId) return;
+
+      if (state.localObjectUrl) {
+        try { URL.revokeObjectURL(state.localObjectUrl); } catch (_) {}
+      }
+      const objUrl = URL.createObjectURL(file);
+      state.localObjectUrl = objUrl;
+
+      updateGenProgress(42, `Reading "${file.name.slice(0, 22)}"...`, 'Loading Video');
 
       let handled = false;
       const finalizeLoad = async () => {
-        if (handled || jobId !== activeGenJobId) return; handled = true;
-        const rawDur = Number(mainVideo.duration), dur = (isFinite(rawDur) && rawDur > 0.5) ? rawDur : 15;
-        state.sourceMode = 'local'; state.videoDuration = dur;
+        if (handled || jobId !== activeGenJobId) return;
+        handled = true;
+        const rawDur = Number(mainVideo.duration);
+        const dur = (isFinite(rawDur) && rawDur > 0.5) ? rawDur : 15;
+        state.sourceMode = 'local';
+        state.videoDuration = dur;
         state.sourceLabel = `Local Video • ${file.name.slice(0, 24)}`;
-        updateGenProgress(45, 'Deep-scanning full audio for highest engagement moments...', 'AI Peak Detection');
+        updateGenProgress(55, 'Deep-scanning full audio for highest engagement moments...', 'AI Peak Detection');
 
         let peaks = null;
         if (file.size && file.size <= 95 * 1024 * 1024) {
           peaks = await analyzeLocalAudioPeaks(file, dur);
         }
         if (jobId !== activeGenJobId) return;
-        updateGenProgress(50, 'Slicing highest-engagement viral moments...', 'Smart AI Slicing');
+        updateGenProgress(68, 'Slicing highest-engagement viral moments...', 'Smart AI Slicing');
         autoSliceClips(dur, file.name.replace(/\.[^.]+$/, ''), peaks);
         renderWaveformBars();
-        mainVideo.muted = state.muted; mainVideo.currentTime = 0;
+        mainVideo.muted = state.muted;
+        mainVideo.currentTime = 0;
         await deepEditAllGeneratedClips(file, jobId);
         if (jobId !== activeGenJobId) return;
         completeGenProgress(state.clips.length, jobId);
@@ -3734,11 +3808,16 @@
       mainVideo.onloadedmetadata = finalizeLoad;
       mainVideo.onloadeddata = finalizeLoad;
       mainVideo.onerror = () => {
-        document.getElementById('genProgressModal').classList.add('hidden');
-        restoreCredits(tx, 'Video decode failed');
-        showToast('Could not decode video. Try MP4 (H.264) or WebM.');
+        if (jobId === activeGenJobId) {
+          document.getElementById('genProgressModal').classList.add('hidden');
+          restoreCredits(tx, 'Video decode failed');
+          showToast('Could not decode video. Try MP4 (H.264) or WebM. The uploaded copy remains in storage.');
+        }
       };
-      mainVideo.removeAttribute('crossorigin'); mainVideo.muted = true; mainVideo.src = objUrl; mainVideo.load();
+      mainVideo.removeAttribute('crossorigin');
+      mainVideo.muted = true;
+      mainVideo.src = objUrl;
+      mainVideo.load();
       setTimeout(finalizeLoad, 1600);
     }
 
